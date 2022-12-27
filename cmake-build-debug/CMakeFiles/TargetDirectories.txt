@@ -1,0 +1,6 @@
+/home/deian/CLionProjects/TerminalOS/cmake-build-debug/CMakeFiles/TerminalOS.dir
+/home/deian/CLionProjects/TerminalOS/cmake-build-debug/CMakeFiles/cp.dir
+/home/deian/CLionProjects/TerminalOS/cmake-build-debug/CMakeFiles/tee.dir
+/home/deian/CLionProjects/TerminalOS/cmake-build-debug/CMakeFiles/dirname.dir
+/home/deian/CLionProjects/TerminalOS/cmake-build-debug/CMakeFiles/edit_cache.dir
+/home/deian/CLionProjects/TerminalOS/cmake-build-debug/CMakeFiles/rebuild_cache.dir
