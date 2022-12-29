@@ -64,33 +64,34 @@ void executeCommands(char** parsedCommand){
         execv(builtInCommandLocation,parsedCommand);
     }
 }
-//void parseCommandWithPipes(char** parsedCommand,char parsedCommandWithPipes[20][20][20],int parsedCommandLength){
-//    int j = 0;
-//
-//    for(int i = 0;i<parsedCommandLength;i++){
-//        int k = 0;
-//        if(strcmp(parsedCommand[i],"|") == 0){
-//            j++;
-//        }
-//        else{
-//            strcpy(parsedCommandWithPipes[j][k],parsedCommand[i]);
-//            k++;
-//        }
-//
-//    }
-//}
+void parsePipes(char** parsedCommand,char parsedCommandWithPipes[20][20][20],int parsedCommandLength){
+    int j = 0;  //function to parse the '|' symbols in the command array, placing each command on a different row of a matrix
+
+    for(int i = 0;i<parsedCommandLength;i++){
+        int k;
+        if(strcmp(parsedCommand[i],"|") == 0){
+            k = 0;
+            j++;
+        }
+        else{
+            strcpy(parsedCommandWithPipes[j][k],parsedCommand[i]);
+            k++;
+        }
+
+    }
+}
 int main(int argc, char **argv) {
 
     getcwd(projectRootDirectory, sizeof(projectRootDirectory)); //the initial location from where you ran the program
     char input[256];
     int pid;
-    //addToPATH();
-    char ** commandOutputBuffer;
+    addToPATH();
+    //char ** commandOutputBuffer;
     system("clear");
 
     for (;;) {
-        char cwd[1024];
-        char parsedCommandWithPipes[20][20][20];
+        //char cwd[1024];
+        char parsedCommandWithPipes[20][20][20] = {NULL};
         //getcwd(cwd,sizeof(cwd));
         inputHistory(input);
         char *parsedCommand[100] = {NULL};
@@ -98,20 +99,18 @@ int main(int argc, char **argv) {
         int *commandPointer = &parsedCommandLength;
 
         splitCommand(input,parsedCommand,commandPointer);
-//        parseCommandWithPipes(parsedCommand,parsedCommandWithPipes,parsedCommandLength);
+        parsePipes(parsedCommand,parsedCommandWithPipes,parsedCommandLength);
 //        for(int i = 0;i<20;i++)
 //            for(int j = 0;j<20;j++)
-//                if(strcmp(parsedCommandWithPipes[i][j],"")!=0)
+//                //if(strcmp(parsedCommandWithPipes[i][j],"")!=0)
 //                 printf("p[%d][%d] = %s \n",i,j,parsedCommandWithPipes[i][j]);
 //       // printf("%d",parsedCommandLength);
         if(strcmp(parsedCommand[0],"exit") == 0)
             exit(0);
         if((pid = fork())< 0 ){
             perror("Error when creating the fork.");
-
         }
         if(pid == 0){
-
             executeCommands(parsedCommand);
         }
         else{
@@ -122,7 +121,7 @@ int main(int argc, char **argv) {
     return 0;
 
 }
-    }
+}
 
 
 
