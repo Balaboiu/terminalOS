@@ -27,6 +27,8 @@ int main(int argc, char **argv){
             char *copy = strdup(argv[i]);   //make a copy of the parameter, to compare later
             int length = strlen(argv[i]);
 
+            if(argv[i][length] == '/')
+                length--;
             for (int j = length; j > 0; j--)  //iterate from the last element to the first one
             {
                 if (argv[i][j] == '/') {       //until you reach a '/'
