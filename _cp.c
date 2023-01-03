@@ -6,7 +6,7 @@
 
 #define SIZE 512
 char currentWorkingDirectory[1024];
-char* fileDescriptors[2];
+char* fileDescriptors[50];
 
 int getFileDescriptors(int argc,char** argv,char** fileDescriptors){
     int fdCount = 0;
