@@ -8,7 +8,7 @@
 char currentWorkingDirectory[1024];
 char* fileDescriptors[2];
 
-void getFileDescriptors(int argc,char** argv,char** fileDescriptors){
+int getFileDescriptors(int argc,char** argv,char** fileDescriptors){
     int fdCount = 0;
 
     for(int i = 1; i<argc;i++){
@@ -19,9 +19,10 @@ void getFileDescriptors(int argc,char** argv,char** fileDescriptors){
                 fileDescriptors[fdCount] = argv[i];
                 fdCount++;
             }
-    }
+        }
 
-}
+    }
+    return fdCount;
 };
 int cp(){
     int fd1,fd2, n, length;
@@ -61,16 +62,62 @@ int cp(){
     close(fd2);
 
 }
+int cp_t(char* location,int fdCount){
+
+    for(int i = 0; i < fdCount-1; i++){
+        int fd1,fd2,length,n;
+        char fileLocation[512];
+        char* buffer;
+
+        strcpy(fileLocation,location);
+        strcat(fileLocation,"/");
+        strcat(fileLocation,fileDescriptors[i]);
+
+        if((fd1 = open(fileDescriptors[i], O_RDONLY)) < 0)
+        {
+            printf("Error opening the input file\n");
+            return 1;
+        }
+        if((fd2 = open(fileLocation,  O_WRONLY | O_CREAT ,0664)) < 0)
+        {
+            printf("Error opening the output file\n");
+            return 2;
+        }
+        length = lseek (fd1, 0, SEEK_END) - lseek(fd1, 0, SEEK_SET);
+        buffer = (char *)malloc(length * sizeof(char));
+
+        if(buffer == NULL){
+            printf("Malloc failed.");
+            return 3;
+        }
+        while( (n = read(fd1, buffer, length)) > 0)
+        {
+            buffer[n] = '\0';
+            write(fd2,buffer,length);
+            //printf("%s\n",buffer);
+        }
+        if( n < 0)
+        {
+            printf("Error reading the file\n");
+            return 4;
+        }
+        free(buffer);
+        close(fd1);
+        close(fd2);
+
+    }
+
+
+};
 int main(int argc, char **argv){
-//    getcwd(currentWorkingDirectory,sizeof(currentWorkingDirectory));
-//    strcat(currentWorkingDirectory,"/");
+    int fdCount = getFileDescriptors(argc,argv,fileDescriptors);
 
-    getFileDescriptors(argc,argv,fileDescriptors);
+    int c;
 
-    int optarg;
+    char* tvalue = NULL;
     int iflag = 0, rflag = 0, tflag = 0,vflag = 0,hflag = 0;
-    while((optarg = getopt(argc,argv,"irtvh")) != -1){
-        switch(optarg){
+    while((c = getopt(argc,argv,"irt:vh")) != -1){
+        switch(c){
             case 'i':
                 iflag = 1;
                 break;
@@ -79,6 +126,7 @@ int main(int argc, char **argv){
                 break;
             case 't':
                 tflag = 1;
+                tvalue = optarg;
                 break;
             case 'v':
                 vflag = 1;
@@ -103,6 +151,10 @@ int main(int argc, char **argv){
     else if(vflag == 1){
         printf("'%s' -> '%s'\n",fileDescriptors[0],fileDescriptors[1]);
         cp();
+    }
+    else if(tflag == 1){
+
+        cp_t(tvalue,fdCount);
     }
     else if(iflag == 0 && rflag == 0 && tflag == 0 && vflag == 0 && hflag == 0){
 
