@@ -8,7 +8,7 @@
 char currentWorkingDirectory[1024];
 char* fileDescriptors[50];
 
-int getFileDescriptors(int argc,char** argv,char** fileDescriptors){
+int getFileDescriptors(int argc,char** argv){
     int fdCount = 0;
 
     for(int i = 1; i<argc;i++){
@@ -110,7 +110,7 @@ int cp_t(char* location,int fdCount){
 
 };
 int main(int argc, char **argv){
-    int fdCount = getFileDescriptors(argc,argv,fileDescriptors);
+    int fdCount = getFileDescriptors(argc,argv);
 
     int c;
 
@@ -146,18 +146,17 @@ int main(int argc, char **argv){
     else if(iflag == 1){
         printf("cp: overwrite '%s'?",fileDescriptors[1]);
         getchar();
-        cp();
+
     }
     else if(vflag == 1){
         printf("'%s' -> '%s'\n",fileDescriptors[0],fileDescriptors[1]);
-        cp();
+
     }
     else if(tflag == 1){
 
         cp_t(tvalue,fdCount);
     }
     else if(iflag == 0 && rflag == 0 && tflag == 0 && vflag == 0 && hflag == 0){
-
         cp();
     }
 }

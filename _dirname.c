@@ -5,10 +5,10 @@
 
 int main(int argc, char **argv){
 
-    int optarg;
+    int c;
     int hflag = 0;
-    while ((optarg = getopt(argc, argv, "h")) != -1){
-        switch(optarg){
+    while ((c = getopt(argc, argv, "h")) != -1){
+        switch(c){
             case 'h':
                 hflag = 1;
                 break;
