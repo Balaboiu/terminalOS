@@ -79,10 +79,6 @@ void tee(char* fileDescriptor){
     counter++;
 }
 
-
-
-
-
 int main(int argc, char **argv) {
     int fdCount = getFileDescriptors(argc,argv);
     int c;

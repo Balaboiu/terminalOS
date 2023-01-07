@@ -1,0 +1,11 @@
+bin
+cmake-build-debug
+CMakeLists.txt
+cp
+_cp.c
+_dirname.c
+main
+main.c
+_tee.c
+test
+testFile

@@ -5,20 +5,28 @@
 #include <readline/readline.h>
 #include <sys/wait.h>
 
+#define PIPE 1
+#define REDIRECT 2
+#define APPEND_REDIRECT 3
+#define LAST 4
+
+
 char projectRootDirectory[1024];
+int globCounter = 0;
+char** commandChunk = NULL;
 
-
-int inputHistory(char* str){
+void inputHistory(char* str){
     char* input;
     //printf("%s ",cwd);
     input = readline("$> ");
-    if(strlen(input)==0){
-        return 0;
-    }
+    if(strlen(input)!=0){
+
+
     strcpy(str, input);
     add_history(str);
+   }
     free(input);
-    return 1;
+
 }
 void addToPATH(){
     char currentPath[1024] = "PATH="; //we need to add the commands to the PATH to be able to execute them
@@ -38,6 +46,7 @@ void splitCommand(char* command, char** parsedCommand,int* parsedCommandLength) 
     }
     *parsedCommandLength = i;
 }
+
 void executeCommands(char** parsedCommand){
     char customCommandLocation[1024];
     char builtInCommandLocation[512];
@@ -63,24 +72,37 @@ void executeCommands(char** parsedCommand){
         execv(builtInCommandLocation,parsedCommand);
     }
 }
-void parsePipes(char** parsedCommand,char parsedCommandWithPipes[20][20][20],int parsedCommandLength,int *numberPointer){
-    int j = 0;  //function to parse the '|' symbols in the command array, placing each command on a different row of a matrix
+
+int getCommandChunk(char** parsedCommand,int parsedCommandLength){
+
+    commandChunk = (char**)malloc(4096*sizeof(char));
 
     for(int i = 0;i<parsedCommandLength;i++){
-        int k;
-        if(strcmp(parsedCommand[i],"|") == 0){
-            k = 0;
-            j++;
 
+        if(strcmp(parsedCommand[i],"|") == 0){
+            globCounter++;
+            return PIPE;
+        }
+        else if(strcmp(parsedCommand[i],">") == 0){
+            globCounter++;
+            return REDIRECT;
+        }
+        else if(strcmp(parsedCommand[i],">>") == 0){
+            globCounter++;
+            return APPEND_REDIRECT;
         }
         else{
-            strcpy(parsedCommandWithPipes[j][k],parsedCommand[i]);
-            k++;
+            commandChunk[i] = parsedCommand[i];
+            //memcpy(commandChunk[i],parsedCommand[i],sizeof(*parsedCommand[i]));
+            //printf("%s\n",commandChunk[i]);
+
+            globCounter++;
         }
-        *numberPointer = j;
+
     }
+    return LAST;
 }
-void executePipedCommands(char parsedCommandWithPipes[20][20][20], int numberOfPipes){
+/*void executePipedCommands(char* parsedCommandWithPipes[20][20], int numberOfPipes){
     int pipeFD[2*numberOfPipes];
     int pid;
     for(int i  = 0; i < 2*numberOfPipes; i += 2)
@@ -118,7 +140,7 @@ void executePipedCommands(char parsedCommandWithPipes[20][20][20], int numberOfP
                 for (int j = 0; j < numberOfPipes * 2; j++)
                     close(pipeFD[j]);
                 printf("test 3: %s\n",parsedCommandWithPipes[i]);
-                executeCommands((char**)parsedCommandWithPipes[i]);
+                executeCommands(parsedCommandWithPipes);
             }
 
         }
@@ -130,41 +152,125 @@ void executePipedCommands(char parsedCommandWithPipes[20][20][20], int numberOfP
 
         }
     }
+}*/
+void redirect(char** fileName){
+
 }
-//void removeNulls(char** parsedCommand,char** parsedCommandAfterRemoval){
-//    int i = 0;
-//
-//    while(strcmp(parsedCommand[i],NULL) != 0){
-//        strcpy(parsedCommandAfterRemoval[i],parsedCommand[i]);
-//        i++;
-//    }
-//
-//};
+int countPipesAndRedirects(char** parsedCommand,int parsedCommandLength) {
+    int count = 0;
+    for (int i = 0; i < parsedCommandLength; i++) {
+        if (strcmp(parsedCommand[i], ">") == 0 || strcmp(parsedCommand[i], ">>") == 0 ||
+            strcmp(parsedCommand[i], "|") == 0) {
+            count++;
+        }
+
+
+    }
+    return count;
+}
+void executeCommandChains(char** parsedCommand,int parsedCommandLength,int count){
+
+    if(count == 0){
+
+        executeCommands(parsedCommand);
+    }
+    else {
+        int prevStatus = 0;
+        for (int i = 0; i <= count; i++) {
+            int pipeFD[2];
+
+            int status = getCommandChunk(parsedCommand + globCounter,parsedCommandLength - globCounter);
+            //printf("prevStatus: %d status: %d\n",prevStatus,status);
+
+            if(status == PIPE){
+                int pid;
+                pipe(pipeFD);
+                if(( pid = fork()) < 0 ){
+                    perror("Error when creating the fork.");
+                }
+                if(pid == 0){
+                    dup2(pipeFD[1],1);
+                    close(pipeFD[0]);
+                    close(pipeFD[1]);
+                    executeCommands(commandChunk);
+
+
+                    //free(commandChunk);
+                }
+                else {
+                    waitpid(pid,NULL,0);
+                    prevStatus = status;
+                    continue;
+
+                }
+            }
+
+            else if((status == PIPE || status == REDIRECT) && prevStatus == PIPE){
+                /// middle pipe
+                printf("%s %d %d\n",commandChunk[0], globCounter,i);
+                prevStatus = status;
+            }
+            else if(status == LAST && prevStatus == PIPE){
+                /// end pipe
+                int pid;
+                pipe(pipeFD);
+                if(( pid = fork()) < 0 ){
+                    perror("Error when creating the fork.");
+                }
+                if(pid == 0){
+                    dup2(pipeFD[0],0);
+                    close(pipeFD[0]);
+                    close(pipeFD[1]);
+                    executeCommands(commandChunk);
+
+
+                    //free(commandChunk);
+                }
+                else {
+                    waitpid(pid,NULL,0);
+                    prevStatus = status;
+                    continue;
+                }
+            }
+
+
+            else if(status == LAST && prevStatus == REDIRECT){
+                /// redirect
+                printf("%s %d %d\n",commandChunk[0], globCounter,i);
+                prevStatus = status;
+
+
+            }
+            else if(status == LAST && prevStatus == APPEND_REDIRECT){
+                /// append redirect
+                printf("%s %d %d\n",commandChunk[0], globCounter,i);
+                prevStatus = status;
+            }
+        }
+    }
+}
 int main(int argc, char **argv) {
 
     getcwd(projectRootDirectory, sizeof(projectRootDirectory)); //the initial location from where you ran the program
     char input[256];
     int pid;
     addToPATH();
-    //char ** commandOutputBuffer;
+
     system("clear");
 
     for (;;) {
-        //char cwd[1024];
-        char parsedCommandWithPipes[20][20][20] = {NULL};
-        //getcwd(cwd,sizeof(cwd));
+
+        char* parsedCommandWithPipes[20][20];
+
         inputHistory(input);
+
         char *parsedCommand[100] = {NULL};
         int parsedCommandLength,*commandPointer = &parsedCommandLength;
-        int numberOfPipes = 0, *numberPointer = &numberOfPipes;
 
         splitCommand(input,parsedCommand,commandPointer);
-        parsePipes(parsedCommand,parsedCommandWithPipes,parsedCommandLength,numberPointer);
+        int count = countPipesAndRedirects(parsedCommand,parsedCommandLength);
 
-//        for(int i = 0;i<20;i++)
-//            for(int j = 0;j<20;j++)
-//                //if(strcmp(parsedCommandWithPipes[i][j],"")!=0)
-//                 printf("p[%d][%d] = %s \n",i,j,parsedCommandWithPipes[i][j]);
+//        printf("%d \n",test);
 
         if(strcmp(parsedCommand[0],"exit") == 0)
             exit(0);
@@ -172,11 +278,18 @@ int main(int argc, char **argv) {
             perror("Error when creating the fork.");
         }
         if(pid == 0){
-            executeCommands(parsedCommand);
-            //executePipedCommands(parsedCommandWithPipes,numberOfPipes);
+            executeCommandChains(parsedCommand,parsedCommandLength, count);
+//                        for(int j = 0;j<parsedCommandLength;j++)
+//                printf("%s ",commandChunk[j]);
+           // free(commandChunk);
+
+//            executeCommands(parsedCommandWithPipes[0]);
+
         }
         else{
             wait(NULL);
+            printf("\n");
+
             continue;
     }
 
