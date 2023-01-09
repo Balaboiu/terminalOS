@@ -4,6 +4,9 @@
 #include <readline/history.h>
 #include <readline/readline.h>
 #include <sys/wait.h>
+#include <fcntl.h>
+#include <sys/types.h>
+#include <sys/stat.h>
 
 #define PIPE 1
 #define REDIRECT 2
@@ -70,6 +73,7 @@ void executeCommands(char** parsedCommand){
     }
     else{
         execv(builtInCommandLocation,parsedCommand);
+       // system(parsedCommand);
     }
 }
 
@@ -153,9 +157,7 @@ int getCommandChunk(char** parsedCommand,int parsedCommandLength){
         }
     }
 }*/
-void redirect(char** fileName){
 
-}
 int countPipesAndRedirects(char** parsedCommand,int parsedCommandLength) {
     int count = 0;
     for (int i = 0; i < parsedCommandLength; i++) {
@@ -168,86 +170,97 @@ int countPipesAndRedirects(char** parsedCommand,int parsedCommandLength) {
     }
     return count;
 }
-void executeCommandChains(char** parsedCommand,int parsedCommandLength,int count){
+void executeCommandChains(char** parsedCommand,int parsedCommandLength,int count) {
 
-    if(count == 0){
+    if (count == 0) {
 
         executeCommands(parsedCommand);
-    }
-    else {
+    } else {
+        int pipeFD[count * 2];
+
+        for (int i = 0; i < count * 2; i += 2)
+            pipe(pipeFD + i);
         int prevStatus = 0;
+
         for (int i = 0; i <= count; i++) {
-            int pipeFD[2];
 
-            int status = getCommandChunk(parsedCommand + globCounter,parsedCommandLength - globCounter);
+            int status = getCommandChunk(parsedCommand + globCounter, parsedCommandLength - globCounter);
             //printf("prevStatus: %d status: %d\n",prevStatus,status);
+            int pid;
+            pipe(pipeFD);
+            if ((pid = fork()) < 0) {
+                perror("Error when creating the fork.");
+            }
+            if (pid == 0) {
+                if (status == PIPE) {
+                    dup2(pipeFD[1], 1);
+                    //                    close(pipeFD[0]);
+                    //                    close(pipeFD[1]);
+                    for (int j = 0; j < count * 2; j++)
+                        close(pipeFD[j]);
+                    executeCommands(commandChunk);
 
-            if(status == PIPE){
-                int pid;
-                pipe(pipeFD);
-                if(( pid = fork()) < 0 ){
-                    perror("Error when creating the fork.");
+                    //free(commandChunk);
                 }
-                if(pid == 0){
+                    // continue;
+                else if ((status == PIPE || status == REDIRECT) && prevStatus == PIPE) {
+                    /// middle pipe
+                    dup2(pipeFD[(i-1)*2],0);
+                    dup2(pipeFD[(i*2)+1],1);
+                    for (int j = 0; j < count * 2; j++)
+                        close(pipeFD[j]);
+                    executeCommands(commandChunk);
+
+                }
+                else if (status == LAST && prevStatus == PIPE) {
+                    /// end pipe
+                    dup2(pipeFD[(2 * count) - 2], 0);
+                    //                    close(pipeFD[0]);
+                    //                    close(pipeFD[1]);
+                    for (int j = 0; j < count * 2; j++)
+                        close(pipeFD[j]);
+                    executeCommands(commandChunk);
+
+
+                }
+                else if(status == REDIRECT || status == APPEND_REDIRECT){
                     dup2(pipeFD[1],1);
-                    close(pipeFD[0]);
-                    close(pipeFD[1]);
-                    executeCommands(commandChunk);
+                    for (int j = 0; j < count * 2; j++)
+                    close(pipeFD[j]);
+
+                }
+                else if (status == LAST && prevStatus == REDIRECT) {
+                    /// redirect
+                   int fd = open(commandChunk[0],  O_WRONLY | O_CREAT ,0664);
+                   dup2(fd,0);
+                    for (int j = 0; j < count * 2; j++)
+                        close(pipeFD[j]);
 
 
-                    //free(commandChunk);
+
+
+                }
+                else if (status == LAST && prevStatus == APPEND_REDIRECT) {
+                    /// append redirect
+                    int fd = open(commandChunk[0],  O_WRONLY | O_APPEND | O_CREAT ,0664);
+                    dup2(fd,0);
+                    for (int j = 0; j < count * 2; j++)
+                        close(pipeFD[j]);
                 }
                 else {
-                    waitpid(pid,NULL,0);
-                    prevStatus = status;
-                    continue;
-
+                    printf("fuck\n");
+                    break;
                 }
             }
-
-            else if((status == PIPE || status == REDIRECT) && prevStatus == PIPE){
-                /// middle pipe
-                printf("%s %d %d\n",commandChunk[0], globCounter,i);
-                prevStatus = status;
-            }
-            else if(status == LAST && prevStatus == PIPE){
-                /// end pipe
-                int pid;
-                pipe(pipeFD);
-                if(( pid = fork()) < 0 ){
-                    perror("Error when creating the fork.");
-                }
-                if(pid == 0){
-                    dup2(pipeFD[0],0);
-                    close(pipeFD[0]);
-                    close(pipeFD[1]);
-                    executeCommands(commandChunk);
-
-
-                    //free(commandChunk);
-                }
-                else {
-                    waitpid(pid,NULL,0);
-                    prevStatus = status;
-                    continue;
-                }
-            }
-
-
-            else if(status == LAST && prevStatus == REDIRECT){
-                /// redirect
-                printf("%s %d %d\n",commandChunk[0], globCounter,i);
-                prevStatus = status;
-
-
-            }
-            else if(status == LAST && prevStatus == APPEND_REDIRECT){
-                /// append redirect
-                printf("%s %d %d\n",commandChunk[0], globCounter,i);
+            else{
+                for(int j = 0; j < count*2;j++)
+                    close(pipeFD[j]);
+                wait(NULL);
                 prevStatus = status;
             }
         }
     }
+
 }
 int main(int argc, char **argv) {
 
