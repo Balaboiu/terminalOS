@@ -54,7 +54,7 @@ void executeCommands(char** parsedCommand){
     char customCommandLocation[1024];
     char builtInCommandLocation[512];
     int pid;
-
+    //addToPATH();
     strcpy(customCommandLocation,projectRootDirectory); //create the path to the chosen custom command
     strcat(customCommandLocation,"/bin/");
     strcat(customCommandLocation,parsedCommand[0]);
@@ -63,16 +63,16 @@ void executeCommands(char** parsedCommand){
     strcat(builtInCommandLocation,parsedCommand[0]);
 
     if(strcmp(parsedCommand[0],"dirname") == 0){
-        execv(customCommandLocation,parsedCommand);
+        execvp(customCommandLocation,parsedCommand);
     }
     else if(strcmp(parsedCommand[0],"cp") == 0){
-        execv(customCommandLocation,parsedCommand);
+        execvp(customCommandLocation,parsedCommand);
     }
     else if(strcmp(parsedCommand[0],"tee") == 0){
-        execv(customCommandLocation,parsedCommand);
+        execvp(customCommandLocation,parsedCommand);
     }
     else{
-        execv(builtInCommandLocation,parsedCommand);
+        execvp(builtInCommandLocation,parsedCommand);
        // system(parsedCommand);
     }
 }
@@ -106,57 +106,7 @@ int getCommandChunk(char** parsedCommand,int parsedCommandLength){
     }
     return LAST;
 }
-/*void executePipedCommands(char* parsedCommandWithPipes[20][20], int numberOfPipes){
-    int pipeFD[2*numberOfPipes];
-    int pid;
-    for(int i  = 0; i < 2*numberOfPipes; i += 2)
-        pipe(&pipeFD[i]);
 
-    for(int i = 0; i < numberOfPipes+1;i++) {
-
-        if((pid = fork() )< 0){
-            perror("Fork failed.");
-        }
-        else if (pid == 0) {
-            printf("Count: %d\n",i);
-            if (i == 0) {     //the first command in the chain
-
-                dup2(pipeFD[1], 1); // output the command to the pipe, not to standard output
-
-                for (int j = 0; j < numberOfPipes * 2; j++)
-
-                    close(pipeFD[j]);
-                printf("test 1: %s\n",parsedCommandWithPipes[0]);
-                executeCommands((char**)parsedCommandWithPipes[i]);
-            }
-            else if (i == numberOfPipes) {    //the last command in the chain
-                dup2(pipeFD[(numberOfPipes * 2) - 2], 0); //get the input from the last pipe, not from standard input
-
-                for (int j = 0; j < numberOfPipes * 2; j++)
-                    close(pipeFD[j]);
-                printf("test 2: %s\n",parsedCommandWithPipes[i]);
-                executeCommands((char**)parsedCommandWithPipes[i]);
-            }
-            else{
-                dup2(pipeFD[(i-1)*2],0); // change the input to the previous pipe
-                dup2(pipeFD[(i*2)+1],1); // change the output to the next pipe
-
-                for (int j = 0; j < numberOfPipes * 2; j++)
-                    close(pipeFD[j]);
-                printf("test 3: %s\n",parsedCommandWithPipes[i]);
-                executeCommands(parsedCommandWithPipes);
-            }
-
-        }
-        else{
-            for (int j = 0; j < numberOfPipes * 2; j++)
-                close(pipeFD[j]);
-            for(int i = 0;i<numberOfPipes;i++)
-                wait(NULL);
-
-        }
-    }
-}*/
 
 int countPipesAndRedirects(char** parsedCommand,int parsedCommandLength) {
     int count = 0;
@@ -176,92 +126,101 @@ void executeCommandChains(char** parsedCommand,int parsedCommandLength,int count
 
         executeCommands(parsedCommand);
     } else {
-        int pipeFD[count * 2];
+        int pipeFD[count][2];
+        int stat;
+        int pid[count + 1];
 
-        for (int i = 0; i < count * 2; i += 2)
-            pipe(pipeFD + i);
         int prevStatus = 0;
+        for (int i = 0; i < count;i++)
+            pipe(pipeFD[i]);
 
         for (int i = 0; i <= count; i++) {
 
             int status = getCommandChunk(parsedCommand + globCounter, parsedCommandLength - globCounter);
             //printf("prevStatus: %d status: %d\n",prevStatus,status);
-            int pid;
-            pipe(pipeFD);
-            if ((pid = fork()) < 0) {
+
+
+            //pipe<(pipeFD);
+            if ((pid[i] = fork()) < 0) {
                 perror("Error when creating the fork.");
             }
-            if (pid == 0) {
-                if (status == PIPE) {
-                    dup2(pipeFD[1], 1);
-                    //                    close(pipeFD[0]);
-                    //                    close(pipeFD[1]);
-                    for (int j = 0; j < count * 2; j++)
-                        close(pipeFD[j]);
+            if (pid[i] == 0) {
+                if (status == PIPE && i == 0) {
+                    dup2(pipeFD[0][1], 1);
+                    for (int j = 0; j < count; j++) {
+                        close(pipeFD[j][0]);
+                        close(pipeFD[j][1]);
+                    }
                     executeCommands(commandChunk);
 
-                    //free(commandChunk);
                 }
-                    // continue;
                 else if ((status == PIPE || status == REDIRECT) && prevStatus == PIPE) {
                     /// middle pipe
-                    dup2(pipeFD[(i-1)*2],0);
-                    dup2(pipeFD[(i*2)+1],1);
-                    for (int j = 0; j < count * 2; j++)
-                        close(pipeFD[j]);
+                    dup2(pipeFD[i - 1][0], 0);
+                    dup2(pipeFD[i][1], 1);
+                    for (int j = 0; j < count; j++) {
+                        close(pipeFD[j][0]);
+                        close(pipeFD[j][1]);
+                    }
+
                     executeCommands(commandChunk);
 
                 }
                 else if (status == LAST && prevStatus == PIPE) {
                     /// end pipe
-                    dup2(pipeFD[(2 * count) - 2], 0);
-                    //                    close(pipeFD[0]);
-                    //                    close(pipeFD[1]);
-                    for (int j = 0; j < count * 2; j++)
-                        close(pipeFD[j]);
+                    dup2(pipeFD[i - 1][0], 0);
+                    for (int j = 0; j < count; j++) {
+                        close(pipeFD[j][0]);
+                        close(pipeFD[j][1]);
+                    }
                     executeCommands(commandChunk);
 
 
                 }
-                else if(status == REDIRECT || status == APPEND_REDIRECT){
-                    dup2(pipeFD[1],1);
-                    for (int j = 0; j < count * 2; j++)
-                    close(pipeFD[j]);
+                else if (status == REDIRECT || status == APPEND_REDIRECT) {
+                   dup2(pipeFD[i-1][0],1);
+                    for (int j = 0; j < count; j++) {
+                        close(pipeFD[j][0]);
+                        close(pipeFD[j][1]);
+                    }
 
                 }
                 else if (status == LAST && prevStatus == REDIRECT) {
                     /// redirect
-                   int fd = open(commandChunk[0],  O_WRONLY | O_CREAT ,0664);
-                   dup2(fd,0);
-                    for (int j = 0; j < count * 2; j++)
-                        close(pipeFD[j]);
-
-
+                    int fd = open(commandChunk[0],  O_WRONLY | O_CREAT ,0664);
+//
+                    dup2(fd,0);
 
 
                 }
                 else if (status == LAST && prevStatus == APPEND_REDIRECT) {
                     /// append redirect
-                    int fd = open(commandChunk[0],  O_WRONLY | O_APPEND | O_CREAT ,0664);
-                    dup2(fd,0);
-                    for (int j = 0; j < count * 2; j++)
-                        close(pipeFD[j]);
+//                    int fd = open(commandChunk[0],  O_WRONLY | O_APPEND | O_CREAT ,0664);
+//                    dup2(fd,0);
+//                    for (int j = 0; j < count * 2; j++)
+//                        close(pipeFD[j]);
+
                 }
                 else {
                     printf("fuck\n");
                     break;
                 }
+
+
             }
-            else{
-                for(int j = 0; j < count*2;j++)
-                    close(pipeFD[j]);
-                wait(NULL);
+            else {
+                for (int j = 0; j < count; j++) {
+                    close(pipeFD[j][0]);
+                    close(pipeFD[j][1]);
+                }
+                for(int i = 0;i<count;i++)
+                    waitpid(pid[i],&stat,0);
                 prevStatus = status;
             }
         }
     }
-
 }
+
 int main(int argc, char **argv) {
 
     getcwd(projectRootDirectory, sizeof(projectRootDirectory)); //the initial location from where you ran the program

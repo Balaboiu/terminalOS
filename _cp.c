@@ -3,6 +3,10 @@
 #include <readline/readline.h>
 #include <fcntl.h>
 #include <stdlib.h>
+#include <dirent.h>
+#include <sys/stat.h>
+#include <errno.h>
+#include <libgen.h>
 
 #define SIZE 512
 char currentWorkingDirectory[1024];
@@ -109,7 +113,78 @@ int cp_t(char* location,int fdCount){
 
 
 };
-int main(int argc, char **argv){
+void copyFile(const char *source, const char *destination) {
+    FILE *src_fp = fopen(source, "rb");
+    FILE *dst_fp = fopen(destination, "wb");
+    char buffer[4096];
+    size_t bytes_read;
+
+    while ((bytes_read = fread(buffer, 1, sizeof buffer, src_fp)) > 0) {
+        fwrite(buffer, 1, bytes_read, dst_fp);
+    }
+
+    fclose(src_fp);
+    fclose(dst_fp);
+}
+void makeDestinationDir(char* source,char* destination) {
+    DIR *dir;
+    struct dirent *ent;
+    struct stat st;
+    char srcPath[FILENAME_MAX];
+    char dstPath[FILENAME_MAX];
+
+    if ((dir = opendir(source)) != NULL) {
+        /*create the destination directory */
+        char *dir_name = basename( source);
+        snprintf(dstPath, FILENAME_MAX, "%s/%s", destination, dir_name);
+        strcpy(destination,dstPath);
+        if (mkdir(dstPath, 0777) != 0) {
+            if (errno != EEXIST) {
+                perror("mkdir() error");
+                exit(1);
+            }
+        }
+    }
+}
+void cp_r(char *source, char *destination) {
+
+    DIR *dir;
+    struct dirent *ent;
+    struct stat st;
+    char srcPath[FILENAME_MAX];
+    char dstPath[FILENAME_MAX];
+
+    if ((dir = opendir(source)) != NULL) {
+        /*create the destination directory */
+        if (mkdir(destination, 0777) != 0) {
+            if (errno != EEXIST) {
+                perror("mkdir() error");
+                exit(1);
+            }
+        }
+
+        /* copy files and subdirectories */
+        while ((ent = readdir(dir)) != NULL) {
+            if (strcmp(ent->d_name, ".") == 0 || strcmp(ent->d_name, "..") == 0) {
+                continue;
+            }
+
+            snprintf(srcPath, FILENAME_MAX, "%s/%s", source, ent->d_name);
+            snprintf(dstPath, FILENAME_MAX, "%s/%s", destination, ent->d_name);
+
+            if (stat(srcPath, &st) == 0) {
+                if (S_ISDIR(st.st_mode)) {
+                    cp_r(srcPath, dstPath);
+                } else {
+                    copyFile(srcPath, dstPath);
+                }
+            }
+        }
+        closedir(dir);
+    }
+}
+
+    int main(int argc, char **argv){
     int fdCount = getFileDescriptors(argc,argv);
 
     int c;
@@ -139,6 +214,9 @@ int main(int argc, char **argv){
                 break;
         }
     }
+//    for(int i = 0;i<argc;i++){
+//        printf("%s\n",argv[i]);
+    //}
     if(hflag == 1){
         printf("HELP\n");
         return 0;
@@ -146,15 +224,23 @@ int main(int argc, char **argv){
     else if(iflag == 1){
         printf("cp: overwrite '%s'?",fileDescriptors[1]);
         getchar();
+        cp();
 
     }
     else if(vflag == 1){
         printf("'%s' -> '%s'\n",fileDescriptors[0],fileDescriptors[1]);
+        cp();
 
     }
     else if(tflag == 1){
 
         cp_t(tvalue,fdCount);
+    }
+    else if(rflag == 1){
+        makeDestinationDir(fileDescriptors[0],fileDescriptors[1]);
+        //printf("%s \n",fileDescriptors[1]);
+        cp_r(fileDescriptors[0],fileDescriptors[1]);
+
     }
     else if(iflag == 0 && rflag == 0 && tflag == 0 && vflag == 0 && hflag == 0){
         cp();
