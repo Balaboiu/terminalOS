@@ -13,7 +13,6 @@ int main(int argc, char **argv){
                 hflag = 1;
                 break;
             default:
-                perror("Something went wrong\n");
                 break;
 
         }

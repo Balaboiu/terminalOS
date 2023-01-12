@@ -94,7 +94,6 @@ int main(int argc, char **argv) {
                 hflag = 1;
                 break;
             default:
-                printf("oops");
                 break;
         }
 

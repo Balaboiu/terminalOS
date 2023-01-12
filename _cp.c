@@ -210,7 +210,7 @@ void cp_r(char *source, char *destination) {
                 hflag = 1;
                 break;
             default:
-                printf("oops");
+
                 break;
         }
     }
@@ -218,7 +218,9 @@ void cp_r(char *source, char *destination) {
 //        printf("%s\n",argv[i]);
     //}
     if(hflag == 1){
-        printf("HELP\n");
+        printf("Usage: cp [OPTION]... [-T] SOURCE DEST\n"
+               "  or:  cp [OPTION]... SOURCE... DIRECTORY\n"
+               "  or:  cp [OPTION]... -t DIRECTORY SOURCE...\n");
         return 0;
     }
     else if(iflag == 1){
