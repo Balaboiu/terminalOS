@@ -12,6 +12,7 @@
 #define REDIRECT 2
 #define APPEND_REDIRECT 3
 #define LAST 4
+#define REVERSE_REDIRECT 5
 
 
 char projectRootDirectory[1024];
@@ -63,16 +64,20 @@ void executeCommands(char** parsedCommand){
 
     if(strcmp(parsedCommand[0],"dirname") == 0){
         execvp(customCommandLocation,parsedCommand);
+        exit(1);
     }
     else if(strcmp(parsedCommand[0],"cp") == 0){
         execvp(customCommandLocation,parsedCommand);
+        exit(1);
     }
     else if(strcmp(parsedCommand[0],"tee") == 0){
         execvp(customCommandLocation,parsedCommand);
+        exit(1);
     }
     else{
         execvp(builtInCommandLocation,parsedCommand);
-       // system(parsedCommand);
+        exit(1);
+
     }
 }
 int getCommandChunk(char** parsedCommand,int parsedCommandLength){
@@ -93,11 +98,12 @@ int getCommandChunk(char** parsedCommand,int parsedCommandLength){
             globCounter++;
             return APPEND_REDIRECT;
         }
+        else if(strcmp(parsedCommand[i],"<") == 0){
+            globCounter++;
+            return REVERSE_REDIRECT;
+        }
         else{
             commandChunk[i] = parsedCommand[i];
-            //memcpy(commandChunk[i],parsedCommand[i],sizeof(*parsedCommand[i]));
-            //printf("%s\n",commandChunk[i]);
-
             globCounter++;
         }
 
@@ -108,7 +114,7 @@ int countPipesAndRedirects(char** parsedCommand,int parsedCommandLength) {
     int count = 0;
     for (int i = 0; i < parsedCommandLength; i++) {
         if (strcmp(parsedCommand[i], ">") == 0 || strcmp(parsedCommand[i], ">>") == 0 ||
-            strcmp(parsedCommand[i], "|") == 0) {
+            strcmp(parsedCommand[i], "|") == 0 ||  strcmp(parsedCommand[i], "<") == 0)  {
             count++;
         }
 
@@ -131,48 +137,16 @@ void executeCommandChains(char** parsedCommand,int parsedCommandLength,int count
             pipe(pipeFD[k]);
 
         for (int i = 0; i <= count; i++) {
-            //printf("prevStatus: %d status: %d\n",prevStatus,status);
 
             int status = getCommandChunk(parsedCommand + globCounter, parsedCommandLength - globCounter);
 
-            //pipe<(pipeFD);
             if ((pid[i] = fork()) < 0) {
                 perror("Error when creating the fork.");
             }
             if (pid[i] == 0) {
 
-                if (status == PIPE && i == 0) {
-                    for(int k = 0;i<2;i++){
-                        printf("%s \n",commandChunk[i]);}
-                    dup2(pipeFD[0][1], 1);
-                    for (int j = 0; j < count; j++) {
-                        close(pipeFD[j][0]);
-                        close(pipeFD[j][1]);
-                    }
-                    executeCommands(commandChunk);
-
-                }
-                else if ((status == PIPE || status == REDIRECT) && prevStatus == PIPE) {
-                    /// middle pipe
-                    dup2(pipeFD[i - 1][0], 0);
-                    dup2(pipeFD[i][1], 1);
-                    for (int j = 0; j < count; j++) {
-                        close(pipeFD[j][0]);
-                        close(pipeFD[j][1]);
-                    }
-
-                    executeCommands(commandChunk);
-
-                }
-                else if (status == LAST && prevStatus == PIPE) {
-                    /// end pipe
-                    dup2(pipeFD[i - 1][0], 0);
-                    for (int j = 0; j < count; j++) {
-                        close(pipeFD[j][0]);
-                        close(pipeFD[j][1]);
-                    }
-                    executeCommands(commandChunk);
-
+                if (status == PIPE) {
+                continue;
 
                 }
                 else if (status == REDIRECT) {
@@ -188,10 +162,7 @@ void executeCommandChains(char** parsedCommand,int parsedCommandLength,int count
                         exit(1);
                     }
                     dup2(fd,1);
-                    for (int j = 0; j < count; j++) {
-                        close(pipeFD[j][0]);
-                        close(pipeFD[j][1]);
-                    }
+
                     executeCommands(oldCommandChunk);
 
                 }
@@ -203,23 +174,38 @@ void executeCommandChains(char** parsedCommand,int parsedCommandLength,int count
                     getCommandChunk(parsedCommand + globCounter, parsedCommandLength - globCounter);
                     int fd = open(commandChunk[0],  O_WRONLY | O_APPEND | O_CREAT ,0664);
                     dup2(fd,1);
-                    for (int j = 0; j < count; j++) {
-                        close(pipeFD[j][0]);
-                        close(pipeFD[j][1]);
+                    close(fd);
+                    executeCommands(oldCommandChunk);
+
+                }
+                else if (status == REVERSE_REDIRECT) {
+
+                    char** oldCommandChunk = NULL;
+                    oldCommandChunk = (char**)malloc(4096*sizeof(char));
+                    oldCommandChunk = commandChunk;
+                    getCommandChunk(parsedCommand + globCounter, parsedCommandLength - globCounter);
+                    int fd;
+                    if((fd = open(commandChunk[0],  O_RDONLY)) < 0)
+                    {
+                        printf("Error opening the input file\n");
+                        exit(1);
                     }
+                    dup2(fd,0);
+                    close(fd);
                     executeCommands(oldCommandChunk);
 
                 }
 
 
                 else {
-                    //printf("fuck\n");
+
                     break;
                 }
 
 
             }
             else {
+
                 for (int j = 0; j < count; j++) {
                     close(pipeFD[j][0]);
                     close(pipeFD[j][1]);
@@ -254,7 +240,6 @@ int main(int argc, char **argv) {
         splitCommand(input,parsedCommand,commandPointer);
         int count = countPipesAndRedirects(parsedCommand,parsedCommandLength);
 
-//        printf("%d \n",test);
 
         if(strcmp(parsedCommand[0],"exit") == 0)
             exit(0);
@@ -263,12 +248,6 @@ int main(int argc, char **argv) {
         }
         if(pid == 0){
             executeCommandChains(parsedCommand,parsedCommandLength, count);
-//                        for(int j = 0;j<parsedCommandLength;j++)
-//                printf("%s ",commandChunk[j]);
-           // free(commandChunk);
-
-//            executeCommands(parsedCommandWithPipes[0]);
-
         }
         else{
             wait(NULL);
@@ -281,10 +260,3 @@ int main(int argc, char **argv) {
 
 }
 }
-
-
-
-
-
-
-

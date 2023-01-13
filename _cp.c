@@ -54,7 +54,7 @@ int cp(){
     {
         buffer[n] = '\0';
         write(fd2,buffer,length);
-        //printf("%s\n",buffer);
+
     }
     if( n < 0)
     {

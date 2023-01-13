@@ -6,7 +6,7 @@ set(CMAKE_C_STANDARD 99)
 
 
 add_executable(TerminalOS ${SOURCES} main.c)
-add_executable(bin/cp _cp.c)
+add_executable(cp _cp.c)
 add_executable(tee _tee.c)
 add_executable(dirname _dirname.c)
 
