@@ -28,11 +28,17 @@ int main(int argc, char **argv){
 
             if(argv[i][length] == '/')
                 length--;
-            for (int j = length; j > 0; j--)  //iterate from the last element to the first one
+            for (int j = length; j >= 0; j--)  //iterate from the last element to the first one
             {
-                if (argv[i][j] == '/') {       //until you reach a '/'
+                if (argv[i][j] == '/' && j != 0) {       //until you reach a '/'
 
                     argv[i][j] = '\0';         //change the character to the terminator, to truncate the string
+
+                    break;
+                }
+                else if (argv[i][j] == '/' && j == 0) {       //until you reach a '/'
+
+                    argv[i][j+1] = '\0';         //change the character to the terminator, to truncate the string
 
                     break;
                 }

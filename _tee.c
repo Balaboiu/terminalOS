@@ -4,7 +4,7 @@
 #include <fcntl.h>
 #include <stdlib.h>
 
-#define BUFSIZE 4096
+#define BUFSIZE 8192
 
 char* fileDescriptors[50];
 int counter = 0;
@@ -32,7 +32,7 @@ int getFileDescriptors(int argc,char** argv){
     }
     return fdCount;
 };
-int createInputBuffer(){
+void createInputBuffer(){
     int bsize;
     int i =0;
     buffer = malloc(BUFSIZE);
@@ -44,7 +44,7 @@ int createInputBuffer(){
         i++;
         }
         else{
-            memcpy(buffer+BUFSIZE,content,bsize);
+            memcpy(buffer+bsize,content,bsize);
         }
 
     };
