@@ -32,16 +32,6 @@ void inputHistory(char* str){
     free(input);
 
 }
-void addToPATH(){
-    char currentPath[1024] = "PATH="; //we need to add the commands to the PATH to be able to execute them
-    char* env = getenv("PATH");
-
-    strcat(env,":");
-    strcat(env,projectRootDirectory);
-    strcat(env,"/bin");
-    strcat(currentPath,env);
-    putenv(currentPath);
-}
 void splitCommand(char* command, char** parsedCommand,int* parsedCommandLength) { //bug when command contains a space between brackets
     int i = 0;
     while(command != NULL){
@@ -224,7 +214,7 @@ int main(int argc, char **argv) {
     getcwd(projectRootDirectory, sizeof(projectRootDirectory)); //the initial location from where you ran the program
     char input[256];
     int pid;
-    //addToPATH();
+
 
     system("clear");
 
