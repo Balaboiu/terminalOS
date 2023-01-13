@@ -243,6 +243,9 @@ int main(int argc, char **argv) {
 
         if(strcmp(parsedCommand[0],"exit") == 0)
             exit(0);
+        if(strcmp(parsedCommand[0],"cd") == 0){
+            chdir(parsedCommand[1]);
+        }
         if((pid = fork())< 0 ){
             perror("Error when creating the fork.");
         }
